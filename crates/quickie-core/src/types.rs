@@ -21,8 +21,18 @@ pub struct Item {
     pub created_at: u64,
     /// When the owner will unmount it automatically, if ever.
     pub expires_at: Option<u64>,
+    /// Sent from a phone browser; the owner hosts it on the phone's behalf.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub via: Option<WebSender>,
     #[serde(flatten)]
     pub kind: ItemKind,
+}
+
+/// A paired browser (a phone using the web client).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WebSender {
+    pub id: String,
+    pub name: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -43,7 +53,7 @@ pub enum WireEvent {
     Removed { id: ItemId },
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeviceStatus {
     #[serde(flatten)]
     pub info: DeviceInfo,
@@ -60,7 +70,7 @@ pub struct PairingPrompt {
     pub expires_at: u64,
 }
 
-#[derive(Debug, Clone, Copy, Serialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct Transfer {
     pub received: u64,
     pub total: u64,
@@ -79,4 +89,25 @@ pub struct Snapshot {
     pub local_files: HashMap<ItemId, String>,
     pub transfers: HashMap<ItemId, Transfer>,
     pub pairing: Option<PairingPrompt>,
+    /// A QR code invite for a phone, while one is open.
+    pub web_invite: Option<WebInvite>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct WebInvite {
+    /// One URL per LAN address, best guess first. The secret is in the fragment,
+    /// so it never reaches the server in a request line or a log.
+    pub urls: Vec<String>,
+    pub expires_at: u64,
+}
+
+/// The shelf as a paired phone browser sees it.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WebSnapshot {
+    pub host: DeviceInfo,
+    pub you: WebSender,
+    /// The host first, then its paired devices.
+    pub devices: Vec<DeviceStatus>,
+    pub items: Vec<Item>,
+    pub transfers: HashMap<ItemId, Transfer>,
 }

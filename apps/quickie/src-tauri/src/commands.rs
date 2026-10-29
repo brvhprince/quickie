@@ -76,6 +76,17 @@ pub fn cancel_pairing(node: State<Node>) {
     node.cancel_pairing();
 }
 
+/// Shows a QR code a phone can scan to pair its browser.
+#[tauri::command]
+pub fn create_web_invite(node: State<Node>) -> CmdResult {
+    node.create_web_invite().map(|_| ()).map_err(err)
+}
+
+#[tauri::command]
+pub fn cancel_web_invite(node: State<Node>) {
+    node.cancel_web_invite();
+}
+
 #[tauri::command]
 pub fn unpair(node: State<Node>, device: String) -> CmdResult {
     node.unpair(&device).map_err(err)

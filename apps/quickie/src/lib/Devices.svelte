@@ -1,6 +1,6 @@
 <script lang="ts">
-  import type { ShelfClient } from "./client";
-  import type { DeviceStatus, PairingPrompt } from "./types";
+  import { desktop, type ShelfClient } from "./client";
+  import { WEB_PLATFORM, type DeviceStatus, type PairingPrompt } from "./types";
 
   let {
     devices,
@@ -71,7 +71,11 @@
 <div class="devices">
   {#each paired as device (device.id)}
     <span class="chip" class:offline={!device.online} title="{device.platform} · {device.online ? 'online' : 'offline'}">
-      <i class="dot"></i>{device.name}
+      <i class="dot"></i>
+      {#if device.platform === WEB_PLATFORM}
+        <svg class="phone" viewBox="0 0 24 24" aria-label="phone"><rect x="7" y="2.5" width="10" height="19" rx="2.5" /><path d="M11 18.5h2" /></svg>
+      {/if}
+      {device.name}
       {#if confirmUnpair === device.id}
         <button class="unpair confirm" onclick={() => unpair(device.id)}>Unpair</button>
       {:else}
@@ -102,14 +106,17 @@
       <button type="button" class="ghost" onclick={() => (pairingWith = null)}>Cancel</button>
     </div>
   </form>
-{:else if nearby.length > 0}
+{:else}
   <div class="nearby">
-    <span class="muted label">Nearby</span>
+    {#if nearby.length > 0}<span class="muted label">Nearby</span>{/if}
     {#each nearby as device (device.id)}
       <button class="near" disabled={busy} onclick={() => ask(device)} title="Pair with {device.name}">
         {device.name} <span class="plus">Pair</span>
       </button>
     {/each}
+    <button class="near" onclick={() => desktop.createWebInvite().catch((e) => (error = String(e)))} title="Pair a phone by QR code">
+      Add phone <span class="plus">QR</span>
+    </button>
   </div>
 {/if}
 
@@ -171,6 +178,16 @@
 
   .offline {
     color: var(--muted);
+  }
+
+  .phone {
+    width: 12px;
+    height: 12px;
+    margin: 0 -3px 0 -2px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
   }
 
   .offline .dot {

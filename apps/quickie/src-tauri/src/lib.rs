@@ -1,6 +1,8 @@
 mod commands;
 mod window;
 
+use std::path::PathBuf;
+
 use quickie_core::{Config, Node};
 use tauri::{
     App, AppHandle, Emitter, Manager, RunEvent,
@@ -26,7 +28,21 @@ fn node_config(app: &App) -> tauri::Result<Config> {
         data_dir.push(&instance);
         name = Some(format!("{} ({instance})", quickie_core::default_device_name()));
     }
-    Ok(Config { device_name: name, ..Config::new(data_dir) })
+    Ok(Config { device_name: name, web_root: web_root(app), ..Config::new(data_dir) })
+}
+
+/// The phone web client, bundled from `dist-web/`. `QUICKIE_WEB_ROOT` points at
+/// a live build instead, for working on it with `pnpm dev:web`.
+fn web_root(app: &App) -> Option<PathBuf> {
+    if let Some(dir) = std::env::var_os("QUICKIE_WEB_ROOT") {
+        return Some(dir.into());
+    }
+    let dir = app.path().resource_dir().ok()?.join("web");
+    let found = dir.join("index.html").exists();
+    if !found {
+        tracing::warn!("phone web client not found in {}; run `pnpm build:web`", dir.display());
+    }
+    found.then_some(dir)
 }
 
 fn forward_changes(app: AppHandle, node: Node) {
@@ -119,6 +135,8 @@ pub fn run() {
             commands::request_pairing,
             commands::pair,
             commands::cancel_pairing,
+            commands::create_web_invite,
+            commands::cancel_web_invite,
             commands::unpair,
             window::set_expanded,
         ])

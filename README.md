@@ -7,11 +7,20 @@ See [docs/plan.md](docs/plan.md) for the design and roadmap.
 
 ```sh
 pnpm install
-pnpm dev            # Tauri dev build; the bubble appears on the right edge of the screen
+pnpm dev            # builds the phone web client, then runs the Tauri app
 ```
+
+The phone web client (`apps/quickie/web`) is bundled into the app from `apps/quickie/dist-web`.
+A plain `cargo build` needs that folder to exist, so run `pnpm --filter quickie build:web` once
+after cloning. To work on the phone UI, run `pnpm --filter quickie dev:web` (rebuilds on save) and
+start the app with `QUICKIE_WEB_ROOT=apps/quickie/dist-web`, then reload the phone page.
 
 - **Pair** once per device: open the shelf, click a device under *Nearby*, and type the 6-digit
   code it shows. Only paired devices can see your shelf.
+- **Phones** (no app needed): *Add phone* shows a QR code. Scan it, accept the browser's
+  certificate warning once (expected on a home network: there's no certificate authority), name the
+  phone, done. The phone sees the whole shelf through that computer and can share text, photos and
+  files; the computer hosts what the phone shares.
 - **Share**: type or paste text, ⌘V anywhere in the open shelf, or drop files on the bubble.
   Files stay where they are; other devices pull them only when opened, saved or dragged out.
 - **Unmount** takes an item off every device. Items expire on their own after 24h.
@@ -36,7 +45,7 @@ cargo run -p quickie-core --example node -- "Test Phone"
 ## Test
 
 ```sh
-cargo test --workspace       # includes real two-node pairing/transfer tests over mDNS
+cargo test --workspace       # real nodes over mDNS: pairing, transfers, and the phone web API
 pnpm --filter quickie check  # Svelte/TypeScript
 ```
 
@@ -61,3 +70,9 @@ and clients pin the id they dial. Servers accept any client certificate and chec
 | `GET /v1/items` | paired | this device's own items |
 | `GET /v1/items/{id}/content` | paired | file bytes, with Range for resume |
 | `WS /v1/events` | paired | `snapshot`, then `added` / `removed` for this device's own items |
+
+Phone browsers can't present a certificate, so they use a separate API under `/v1/web/*`,
+authenticated by an HttpOnly, `SameSite=Strict` session cookie obtained by redeeming the QR code's
+one-time secret (`POST /v1/web/pair`). Requests with a foreign `Origin` are refused. Shared files
+are served with `Content-Security-Policy: sandbox` so nothing shared can script the web client. The
+app itself is served at `/`.

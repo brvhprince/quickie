@@ -1,8 +1,5 @@
 <script lang="ts">
-  import { writeText } from "@tauri-apps/plugin-clipboard-manager";
-  import { startDrag } from "@crabnebula/tauri-plugin-drag";
-  import { desktop, type ShelfClient } from "./client";
-  import { dragIcon } from "./dragIcon";
+  import type { ItemActions } from "./actions";
   import { ago, bytes, expiresIn, extension } from "./format";
   import type { Item, Transfer } from "./types";
 
@@ -12,55 +9,53 @@
     mine,
     localPath,
     transfer,
-    client,
+    actions,
     now,
     onerror,
   }: {
     item: Item;
+    /** Who shared it, as shown to this viewer. */
     owner: string;
+    /** Whether this viewer may unmount it. */
     mine: boolean;
-    localPath: string | undefined;
-    transfer: Transfer | undefined;
-    client: ShelfClient;
+    localPath?: string;
+    transfer?: Transfer;
+    actions: ItemActions;
     now: number;
     onerror: (message: string) => void;
   } = $props();
 
   let copied = $state(false);
 
-  async function run(action: () => Promise<unknown>) {
-    try {
-      await action();
-    } catch (e) {
-      onerror(String(e));
-    }
+  // Not awaited before the action starts, so things like window.open still run
+  // inside the click's user gesture (phone browsers block them otherwise).
+  function run(action: () => Promise<unknown>) {
+    action().catch((e) => onerror(e instanceof Error ? e.message : String(e)));
   }
 
-  async function copy() {
-    if (item.kind !== "text") return;
-    await writeText(item.text);
-    copied = true;
-    setTimeout(() => (copied = false), 1200);
+  function copy(text: string) {
+    run(async () => {
+      await actions.copyText(text);
+      copied = true;
+      setTimeout(() => (copied = false), 1200);
+    });
   }
 
-  // Press and move to drag the file out to Finder / Explorer / any app. Remote
-  // files have to be downloaded first, so the first drag starts the download.
+  // Press and move to drag the file out (desktop only).
   const DRAG_THRESHOLD = 4;
   let pressedAt: { x: number; y: number } | null = null;
 
   function down(e: PointerEvent) {
-    if (e.button === 0 && item.kind === "file") pressedAt = { x: e.screenX, y: e.screenY };
+    if (e.button === 0 && actions.dragOut) pressedAt = { x: e.screenX, y: e.screenY };
   }
 
   function move(e: PointerEvent) {
-    if (!pressedAt || item.kind !== "file") return;
+    if (!pressedAt || item.kind !== "file" || !actions.dragOut) return;
     if (Math.hypot(e.screenX - pressedAt.x, e.screenY - pressedAt.y) < DRAG_THRESHOLD) return;
     pressedAt = null;
-    if (localPath) {
-      run(() => startDrag({ item: [localPath], icon: dragIcon(item.name), mode: "copy" }));
-    } else if (!transfer) {
-      run(() => desktop.fetch(item.id));
-    }
+    const file = item;
+    const dragOut = actions.dragOut;
+    run(() => dragOut(file, localPath, transfer));
   }
 
   const percent = $derived(transfer && transfer.total > 0 ? (transfer.received / transfer.total) * 100 : 0);
@@ -76,38 +71,44 @@
   </div>
 
   {#if item.kind === "text"}
-    <p class="text">{item.text}</p>
+    {@const text = item.text}
+    <p class="text">{text}</p>
     <div class="actions">
-      <button class="ghost" onclick={copy}>{copied ? "Copied" : "Copy"}</button>
+      <button class="ghost" onclick={() => copy(text)}>{copied ? "Copied" : "Copy"}</button>
       {#if mine}
-        <button class="ghost danger" onclick={() => run(() => client.unmount(item.id))} title="Remove from every device">Unmount</button>
+        <button class="ghost danger" onclick={() => run(() => actions.remove(item))} title="Remove from every device">
+          Unmount
+        </button>
       {/if}
     </div>
   {:else}
+    {@const file = item}
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
       class="file"
-      class:draggable={!!localPath}
-      title={localPath ? "Drag out to copy it anywhere" : "Drag to download"}
+      class:draggable={actions.dragOut && !!localPath}
+      title={actions.dragOut ? (localPath ? "Drag out to copy it anywhere" : "Drag to download") : file.name}
       onpointerdown={down}
       onpointermove={move}
     >
-      <span class="badge">{extension(item.name)}</span>
-      <span class="name">{item.name}</span>
-      <span class="muted size">{bytes(item.size)}</span>
+      <span class="badge">{extension(file.name)}</span>
+      <span class="name">{file.name}</span>
+      <span class="muted size">{bytes(file.size)}</span>
     </div>
     {#if transfer}
       <div class="progress" role="progressbar" aria-valuenow={Math.round(percent)} aria-valuemin="0" aria-valuemax="100">
         <div class="bar" style:width="{percent}%"></div>
       </div>
-      <div class="muted status">Downloading {bytes(transfer.received)} of {bytes(transfer.total)}</div>
+      <div class="muted status">Fetching {bytes(transfer.received)} of {bytes(transfer.total)}</div>
     {:else}
       <div class="actions">
-        <button class="ghost" onclick={() => run(() => desktop.open(item.id))}>Open</button>
+        <button class="ghost" onclick={() => run(() => actions.open(file))}>Open</button>
         {#if mine}
-          <button class="ghost danger" onclick={() => run(() => client.unmount(item.id))} title="Remove from every device">Unmount</button>
+          <button class="ghost danger" onclick={() => run(() => actions.remove(item))} title="Remove from every device">
+            Unmount
+          </button>
         {:else}
-          <button class="ghost" onclick={() => run(() => desktop.save(item.id))}>Save to Downloads</button>
+          <button class="ghost" onclick={() => run(() => actions.save(file))}>{actions.saveLabel}</button>
         {/if}
       </div>
     {/if}

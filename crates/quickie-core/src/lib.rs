@@ -11,6 +11,7 @@ mod peer;
 mod server;
 mod tls;
 mod types;
+mod web;
 
 use std::{
     collections::{HashMap, hash_map::Entry},
@@ -27,8 +28,9 @@ use tokio::{sync::broadcast, task::AbortHandle};
 pub use identity::default_device_name;
 pub use types::{
     DeviceId, DeviceInfo, DeviceStatus, Item, ItemId, ItemKind, PairingPrompt, Snapshot, Transfer,
-    WireEvent,
+    WebInvite, WebSender, WebSnapshot, WireEvent,
 };
+pub use web::WEB_PLATFORM;
 
 pub const DEFAULT_PORT: u16 = 47800;
 pub const MAX_TEXT_BYTES: usize = 1024 * 1024;
@@ -41,11 +43,13 @@ pub struct Config {
     pub port: u16,
     /// How long shared items stay on the shelf before unmounting themselves.
     pub ttl: Duration,
+    /// The built phone web client, served to paired phones at `/`.
+    pub web_root: Option<PathBuf>,
 }
 
 impl Config {
     pub fn new(data_dir: impl Into<PathBuf>) -> Self {
-        Self { data_dir: data_dir.into(), device_name: None, port: DEFAULT_PORT, ttl: DEFAULT_TTL }
+        Self { data_dir: data_dir.into(), device_name: None, port: DEFAULT_PORT, ttl: DEFAULT_TTL, web_root: None }
     }
 }
 
@@ -85,6 +89,10 @@ struct State {
     pairing: Option<pairing::Pending>,
     transfers: HashMap<ItemId, Transfer>,
     cached: HashMap<ItemId, PathBuf>,
+    /// Paired phone browsers, and how many live connections each has.
+    web_sessions: HashMap<String, web::Session>,
+    web_online: HashMap<String, usize>,
+    invite: Option<web::Invite>,
 }
 
 struct Discovered {
@@ -118,7 +126,9 @@ impl Node {
         };
         let tls = tls::Tls::new(&identity)?;
         let paired = pairing::load_paired(&data_dir)?;
+        let web_sessions = web::load_sessions(&data_dir)?;
         files::reset_cache(&data_dir);
+        web::reset_uploads(&data_dir);
 
         let listener = server::bind(config.port).await?;
         let port = listener.local_addr()?.port();
@@ -135,14 +145,14 @@ impl Node {
                 ttl: config.ttl,
                 tls,
                 runtime: tokio::runtime::Handle::current(),
-                state: Mutex::new(State { paired, ..State::default() }),
+                state: Mutex::new(State { paired, web_sessions, ..State::default() }),
                 wire_tx: broadcast::channel(256).0,
                 changed_tx: broadcast::channel(64).0,
                 mdns,
                 mdns_fullname,
             }),
         };
-        tokio::spawn(server::serve(listener, acceptor, node.clone()));
+        tokio::spawn(server::serve(listener, acceptor, node.clone(), config.web_root));
         tokio::spawn(discovery::browse(node.clone(), browse));
         tokio::spawn(expire_items(node.clone()));
         tracing::info!("quickie node {} ({}) on port {port}", node.me().name, node.me().id);
@@ -179,6 +189,11 @@ impl Node {
                     .filter(|d| !state.paired.contains_key(&d.info.id))
                     .map(|d| DeviceStatus { info: d.info.clone(), paired: false, online: true }),
             )
+            .chain(state.web_sessions.values().map(|s| DeviceStatus {
+                info: DeviceInfo { id: s.id.clone(), name: s.name.clone(), platform: WEB_PLATFORM.into() },
+                paired: true,
+                online: state.web_online.get(&s.id).is_some_and(|n| *n > 0),
+            }))
             .collect();
         devices.sort_by(|a, b| a.info.name.cmp(&b.info.name));
 
@@ -211,25 +226,35 @@ impl Node {
             local_files,
             transfers: state.transfers.clone(),
             pairing,
+            web_invite: state.invite.as_ref().and_then(web::Invite::view),
         }
     }
 
     pub fn share_text(&self, text: String) -> Result<Item> {
+        self.share_text_via(text, None)
+    }
+
+    fn share_text_via(&self, text: String, via: Option<WebSender>) -> Result<Item> {
         ensure!(!text.trim().is_empty(), "Nothing to share");
         ensure!(text.len() <= MAX_TEXT_BYTES, "Text is over {MAX_TEXT_BYTES} bytes");
-        Ok(self.add_local(ItemKind::Text { text }, None))
+        Ok(self.add_local(ItemKind::Text { text }, None, via))
     }
 
     /// Takes one of our own items off everyone's shelf.
     pub fn unmount(&self, id: &str) -> Result<()> {
-        {
+        let path = {
             let mut state = self.state();
             let Some(pos) = state.local.iter().position(|i| i.id == id) else {
                 bail!("Not one of this device's items");
             };
             state.local.remove(pos);
-            state.local_paths.remove(id);
             let _ = self.inner.wire_tx.send(WireEvent::Removed { id: id.to_string() });
+            state.local_paths.remove(id)
+        };
+        // Files a phone uploaded are ours to delete; mounted files are the user's own.
+        let uploads = web::uploads_root(&self.inner.data_dir);
+        if let Some(dir) = path.as_deref().and_then(|p| p.parent()).filter(|d| d.starts_with(&uploads)) {
+            let _ = std::fs::remove_dir_all(dir);
         }
         self.changed();
         Ok(())
@@ -241,8 +266,11 @@ impl Node {
         self.changed();
     }
 
-    /// Forgets a paired device. It can no longer see this shelf (and vice versa).
+    /// Forgets a paired device or phone. It can no longer see this shelf (and vice versa).
     pub fn unpair(&self, device: &str) -> Result<()> {
+        if self.revoke_web_session(device) {
+            return Ok(());
+        }
         {
             let mut state = self.state();
             ensure!(state.paired.remove(device).is_some(), "Not paired with that device");
@@ -269,13 +297,14 @@ impl Node {
         let _ = self.inner.changed_tx.send(());
     }
 
-    fn add_local(&self, kind: ItemKind, path: Option<PathBuf>) -> Item {
+    fn add_local(&self, kind: ItemKind, path: Option<PathBuf>, via: Option<WebSender>) -> Item {
         let now = now_ms();
         let item = Item {
             id: uuid::Uuid::new_v4().simple().to_string(),
             owner: self.inner.me.id.clone(),
             created_at: now,
             expires_at: Some(now + self.inner.ttl.as_millis() as u64),
+            via,
             kind,
         };
         {

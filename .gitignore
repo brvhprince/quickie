@@ -4,3 +4,4 @@ apps/quickie/dist/
 apps/quickie/src-tauri/gen/schemas/
 .DS_Store
 .idea/
+apps/quickie/dist-web/

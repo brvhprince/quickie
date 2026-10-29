@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && pnpm build:web",
+    "build:web": "vite build -c vite.web.config.ts",
+    "dev:web": "vite build -c vite.web.config.ts --watch",
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "tauri": "tauri"
   },
@@ -13,7 +15,8 @@
     "@crabnebula/tauri-plugin-drag": "^2.1.0",
     "@tauri-apps/api": "^2.12.4",
     "@tauri-apps/plugin-clipboard-manager": "^2.5.0",
-    "@tauri-apps/plugin-global-shortcut": "^2.4.1"
+    "@tauri-apps/plugin-global-shortcut": "^2.4.1",
+    "uqr": "^0.1.3"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^7.3.1",

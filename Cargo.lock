@@ -3424,6 +3424,7 @@ dependencies = [
  "http-body-util",
  "hyper",
  "hyper-util",
+ "if-addrs",
  "mdns-sd",
  "mime_guess",
  "rcgen",

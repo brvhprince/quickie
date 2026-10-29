@@ -22,9 +22,9 @@
     const subscriptions = [
       client.onChange((s) => (snapshot = s)),
       desktop.onToggle(() => toggle(!expanded)),
-      // Clicking anywhere else tucks the shelf away, unless a pairing code is showing.
+      // Clicking anywhere else tucks the shelf away, unless a code or QR code is showing.
       getCurrentWindow().onFocusChanged(({ payload: focused }) => {
-        if (!focused && expanded && !snapshot?.pairing) toggle(false);
+        if (!focused && expanded && !snapshot?.pairing && !snapshot?.web_invite) toggle(false);
       }),
       // Files dropped on the bubble or the open shelf are mounted by reference.
       getCurrentWebview().onDragDropEvent(async ({ payload }) => {

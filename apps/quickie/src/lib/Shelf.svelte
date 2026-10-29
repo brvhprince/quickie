@@ -3,7 +3,10 @@
   import { readText } from "@tauri-apps/plugin-clipboard-manager";
   import Devices from "./Devices.svelte";
   import ItemCard from "./ItemCard.svelte";
-  import type { ShelfClient } from "./client";
+  import PhoneInvite from "./PhoneInvite.svelte";
+  import { desktop, type ShelfClient } from "./client";
+  import { desktopActions } from "./desktopActions";
+  import { ownerLabel } from "./owner";
   import type { Snapshot } from "./types";
 
   let {
@@ -24,9 +27,8 @@
   let now = $state(Date.now());
   let input: HTMLTextAreaElement;
 
-  const names = $derived(
-    new Map([[snapshot.me.id, "You"], ...snapshot.devices.map((d) => [d.id, d.name] as const)]),
-  );
+  const names = $derived(new Map(snapshot.devices.map((d) => [d.id, d.name] as const)));
+  const actions = $derived(desktopActions(client));
   const hasPaired = $derived(snapshot.devices.some((d) => d.paired));
 
   onMount(() => {
@@ -94,6 +96,9 @@
   </header>
 
   <Devices devices={snapshot.devices} prompt={snapshot.pairing} {client} {now} />
+  {#if snapshot.web_invite}
+    <PhoneInvite invite={snapshot.web_invite} {now} oncancel={() => desktop.cancelWebInvite()} />
+  {/if}
 
   <div class="composer">
     <textarea
@@ -114,9 +119,9 @@
     {#each snapshot.items as item (item.id)}
       <ItemCard
         {item}
-        {client}
+        {actions}
         {now}
-        owner={names.get(item.owner) ?? "Unknown device"}
+        owner={ownerLabel(item, names, snapshot.me.id)}
         mine={item.owner === snapshot.me.id}
         localPath={snapshot.local_files[item.id]}
         transfer={snapshot.transfers[item.id]}

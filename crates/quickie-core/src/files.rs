@@ -42,7 +42,7 @@ pub(crate) fn describe(path: &Path) -> Result<ItemKind> {
 
 /// A peer chooses the name, so strip anything that could escape the cache dir
 /// or upset Windows.
-fn safe_file_name(name: &str) -> String {
+pub(crate) fn safe_file_name(name: &str) -> String {
     let base = name.rsplit(['/', '\\']).next().unwrap_or_default();
     let cleaned: String = base
         .chars()
@@ -63,7 +63,7 @@ impl Node {
     pub fn mount_file(&self, path: impl Into<PathBuf>) -> Result<Item> {
         let path = path.into();
         let kind = describe(&path)?;
-        Ok(self.add_local(kind, Some(path)))
+        Ok(self.add_local(kind, Some(path), None))
     }
 
     /// Path to an item's bytes on this device, downloading from the owner first

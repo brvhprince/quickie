@@ -22,6 +22,9 @@ importers:
       '@tauri-apps/plugin-global-shortcut':
         specifier: ^2.4.1
         version: 2.4.1
+      uqr:
+        specifier: ^0.1.3
+        version: 0.1.3
     devDependencies:
       '@sveltejs/vite-plugin-svelte':
         specifier: ^7.3.1
@@ -465,6 +468,9 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
+  uqr@0.1.3:
+    resolution: {integrity: sha512-0rjE8iEJe4YmT9TOhwsZtqCMRLc5DXZUI2UEYUUg63ikBkqqE5EYWaI0etFe/5KUcmcYwLih2RND1kq+hrUJXA==}
+
   vite@8.3.5:
     resolution: {integrity: sha512-z1YpjieJ9g0ebTmQpLBv/oq9E3F9EIlOe+7LahW8SrE3LTiG3udBRUXQOlYXP9b+IC2q2phHeVxj9xGlw34OEQ==}
     engines: {node: ^20.19.0 || >=22.12.0}
@@ -847,6 +853,8 @@ snapshots:
       picomatch: 4.0.7
 
   typescript@6.0.3: {}
+
+  uqr@0.1.3: {}
 
   vite@8.3.5:
     dependencies:

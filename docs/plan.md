@@ -28,9 +28,13 @@ Android phone on the **home network**. Quick and ephemeral, not a sync service.
   single-instance.
 - [ ] **M1 leftovers**: folders (zip on the fly?), pasting files copied in Finder/Explorer,
   `tauri-nspanel` so the bubble doesn't steal focus on macOS, Windows test pass.
-- [ ] **M2 phone web client**: desktop serves the Svelte UI; phone scans a QR code (URL + token);
-  upload, download, copy text. Plain HTTP on the LAN, so no service worker and an `execCommand`
-  copy fallback.
+- [x] **M2 phone web client**: desktop serves a Svelte page over the same TLS port; phone pairs by
+  QR code (one-time secret → cookie session); shares text, photos and files (uploaded to and hosted
+  by the desktop); sees, copies, opens and downloads everything on the shelf (other devices' files
+  are fetched through the desktop). WebSocket live updates with a polling fallback.
+- [ ] **M2 follow-ups**: phone pairing survives the desktop's IP changing (cookie is per origin);
+  the one-time certificate warning (could be avoided with a local CA the phone trusts, at the cost
+  of a profile install).
 - [ ] **M3 Tauri mobile**: same core + UI on iOS/Android; share-sheet target, native discovery.
 - [ ] **M4 OS-level mount** (optional): localhost WebDAV gateway → Windows Cloud Files API /
   macOS File Provider.
@@ -47,3 +51,8 @@ Android phone on the **home network**. Quick and ephemeral, not a sync service.
   allows 3 runs per code. Confirmation HMACs cover both TLS-verified device ids.
 - Downloaded copies of other devices' items live in a cache that is wiped on startup and when the
   item leaves the shelf. "Save to Downloads" makes a copy the user keeps.
+- Phones are paired to one desktop, which hosts their items (`Item.via` names the phone). The phone
+  can only unmount what it shared; the desktop can unmount anything it hosts or unpair the phone.
+- Browser trust is weaker than device trust: the browser can't pin the desktop's certificate, so
+  someone actively intercepting the very first visit could steal the one-time QR secret. The native
+  app (M3) closes that gap.

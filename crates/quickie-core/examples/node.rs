@@ -10,7 +10,10 @@
 //!   /ask <device>     ask a nearby device to show a pairing code
 //!   /pair <device> <code>
 //!   /unpair <device>
+//!   /invite           print a QR-code URL for pairing a phone browser
 //!   /ls               print the shelf
+//!
+//! Set QUICKIE_WEB_ROOT to a built web client (apps/quickie/dist-web) to serve it.
 
 use anyhow::{Context, Result, bail};
 use quickie_core::{Config, ItemKind, Node, Snapshot};
@@ -23,7 +26,8 @@ async fn main() -> Result<()> {
     let name = args.next().unwrap_or_else(|| "headless".into());
     let data_dir = args.next().unwrap_or_else(|| format!("target/quickie-{name}"));
 
-    let node = Node::start(Config { device_name: Some(name), ..Config::new(data_dir) }).await?;
+    let web_root = std::env::var_os("QUICKIE_WEB_ROOT").map(Into::into);
+    let node = Node::start(Config { device_name: Some(name), web_root, ..Config::new(data_dir) }).await?;
     let mut changes = node.subscribe();
     let mut lines = BufReader::new(tokio::io::stdin()).lines();
 
@@ -63,6 +67,11 @@ async fn run(node: &Node, line: &str) -> Result<()> {
             println!("paired");
         }
         Some("/unpair") => node.unpair(&device_id(&snap, words.next())?)?,
+        Some("/invite") => {
+            for url in node.create_web_invite()?.urls {
+                println!("invite: {url}");
+            }
+        }
         Some(cmd) if cmd.starts_with('/') => bail!("unknown command {cmd}"),
         _ => {
             node.share_text(line.to_string())?;

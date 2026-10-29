@@ -36,5 +36,7 @@ export const desktop = {
   open: (id: string) => invoke<void>("open_item", { id }),
   save: (id: string) => invoke<string>("save_item", { id }),
   setExpanded: (expanded: boolean) => invoke<void>("set_expanded", { expanded }),
+  createWebInvite: () => invoke<void>("create_web_invite"),
+  cancelWebInvite: () => invoke<void>("cancel_web_invite"),
   onToggle: (cb: () => void) => listen("toggle-shelf", cb),
 };

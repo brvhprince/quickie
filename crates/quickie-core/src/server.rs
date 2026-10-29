@@ -1,4 +1,4 @@
-use std::{net::SocketAddr, time::Duration};
+use std::{net::SocketAddr, path::PathBuf, time::Duration};
 
 use anyhow::Result;
 use axum::{
@@ -26,6 +26,7 @@ use crate::{
     DeviceId, DeviceInfo, Item, Node, WireEvent,
     identity::device_id,
     pairing::{ConfirmMsg, PairError, RequestMsg, StartMsg, StartReply},
+    web,
 };
 
 const PING_EVERY: Duration = Duration::from_secs(10);
@@ -42,7 +43,7 @@ pub(crate) async fn bind(port: u16) -> Result<TcpListener> {
     }
 }
 
-pub(crate) async fn serve(tcp: TcpListener, acceptor: TlsAcceptor, node: Node) {
+pub(crate) async fn serve(tcp: TcpListener, acceptor: TlsAcceptor, node: Node, web_root: Option<PathBuf>) {
     let app = Router::new()
         .route("/v1/hello", get(hello))
         .route("/v1/pair/request", post(pair_request))
@@ -51,6 +52,7 @@ pub(crate) async fn serve(tcp: TcpListener, acceptor: TlsAcceptor, node: Node) {
         .route("/v1/items", get(items))
         .route("/v1/items/{id}/content", get(content))
         .route("/v1/events", get(events))
+        .merge(web::routes(web_root))
         .with_state(node);
     let listener = TlsListener::new(tcp, acceptor);
     let service = app.into_make_service_with_connect_info::<Remote>();
