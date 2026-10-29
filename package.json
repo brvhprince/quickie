@@ -1,0 +1,8 @@
+{
+  "name": "quickie-workspace",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm --filter quickie tauri dev",
+    "build": "pnpm --filter quickie tauri build"
+  }
+}
