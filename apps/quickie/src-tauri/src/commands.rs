@@ -20,15 +20,37 @@ pub fn share_text(node: State<Node>, text: String) -> CmdResult {
     node.share_text(text).map(|_| ()).map_err(err)
 }
 
-/// Mounts dropped files. Returns a message for each one that couldn't be shared.
+/// Mounts dropped or pasted files and folders. Returns a message for each one
+/// that couldn't be shared.
 #[tauri::command]
-pub fn mount_paths(node: State<Node>, paths: Vec<PathBuf>) -> Vec<String> {
-    paths
-        .iter()
-        .filter_map(|path| {
-            let name = path.file_name().unwrap_or(path.as_os_str()).to_string_lossy();
-            node.mount_file(path).err().map(|e| format!("{name}: {e:#}"))
-        })
+pub async fn mount_paths(node: State<'_, Node>, paths: Vec<PathBuf>) -> CmdResult<Vec<String>> {
+    // Sizing up a big folder walks the whole tree; keep that off the async workers.
+    let node = node.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        paths
+            .iter()
+            .filter_map(|path| {
+                let name = path.file_name().unwrap_or(path.as_os_str()).to_string_lossy();
+                node.mount_path(path).err().map(|e| format!("{name}: {e:#}"))
+            })
+            .collect()
+    })
+    .await
+    .map_err(err)
+}
+
+/// Files and folders copied in Finder / Explorer, if that's what's on the clipboard.
+/// Sync, so Tauri runs it on the main thread where AppKit expects pasteboard access.
+#[tauri::command]
+pub fn clipboard_files() -> Vec<PathBuf> {
+    use clipboard_rs::{Clipboard, ClipboardContext};
+    let Ok(clipboard) = ClipboardContext::new() else { return Vec::new() };
+    clipboard
+        .get_files()
+        .unwrap_or_default()
+        .into_iter()
+        .map(|f| PathBuf::from(f.strip_prefix("file://").unwrap_or(&f)))
+        .filter(|p| p.exists())
         .collect()
 }
 
@@ -56,9 +78,25 @@ pub async fn save_item(app: AppHandle, node: State<'_, Node>, id: String) -> Cmd
     let dir = app.path().download_dir().map_err(err)?;
     let name = src.file_name().ok_or("item has no file name")?;
     let dest = unique_path(&dir, Path::new(name));
-    tokio::fs::copy(&src, &dest).await.map_err(err)?;
+    let (from, to) = (src.clone(), dest.clone());
+    tauri::async_runtime::spawn_blocking(move || copy_recursive(&from, &to))
+        .await
+        .map_err(err)?
+        .map_err(err)?;
     app.opener().reveal_item_in_dir(&dest).map_err(err)?;
     Ok(dest)
+}
+
+fn copy_recursive(from: &Path, to: &Path) -> std::io::Result<()> {
+    if !from.is_dir() {
+        return std::fs::copy(from, to).map(|_| ());
+    }
+    std::fs::create_dir_all(to)?;
+    for entry in std::fs::read_dir(from)? {
+        let entry = entry?;
+        copy_recursive(&entry.path(), &to.join(entry.file_name()))?;
+    }
+    Ok(())
 }
 
 #[tauri::command]

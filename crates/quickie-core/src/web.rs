@@ -419,13 +419,24 @@ async fn content(
     Query(q): Query<ContentQuery>,
     req: Request,
 ) -> Response {
-    let Some(Item { kind: ItemKind::File { name, mime, .. }, .. }) = node.find_item(&id) else {
-        return (StatusCode::NOT_FOUND, "That file is no longer on the shelf").into_response();
+    let (name, mime) = match node.find_item(&id).map(|i| i.kind) {
+        Some(ItemKind::File { name, mime, .. }) => (name, mime),
+        Some(ItemKind::Folder { name, .. }) => (format!("{name}.zip"), "application/zip".to_string()),
+        _ => return (StatusCode::NOT_FOUND, "That file is no longer on the shelf").into_response(),
     };
     let path = match node.fetch(&id).await {
         Ok(path) => path,
         Err(err) => return (StatusCode::BAD_GATEWAY, format!("{err:#}")).into_response(),
     };
+    // Phones get folders as a zip, which both iOS Files and Android can open.
+    if path.is_dir() {
+        let mut res = ([(CONTENT_TYPE, "application/zip")], files::zip_body(path)).into_response();
+        if let Ok(value) = HeaderValue::from_str(&attachment(&name)) {
+            res.headers_mut().insert(CONTENT_DISPOSITION, value);
+        }
+        res.headers_mut().insert(X_CONTENT_TYPE_OPTIONS, HeaderValue::from_static("nosniff"));
+        return res;
+    }
     let mut res = match ServeFile::new(path).oneshot(req).await {
         Ok(res) => res.into_response(),
         Err(err) => return (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response(),

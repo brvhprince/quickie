@@ -8,6 +8,7 @@ name = "quickie_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [dependencies]
+clipboard-rs = "0.3.5"
 quickie-core = { path = "../../../crates/quickie-core" }
 tauri = { version = "2.12.5", features = ["tray-icon", "macos-private-api"] }
 tauri-plugin-autostart = "2.7.0"
@@ -22,3 +23,6 @@ tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 
 [build-dependencies]
 tauri-build = { version = "2.7.4", features = [] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+tauri-nspanel = "2.1.1"

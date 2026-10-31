@@ -21,8 +21,10 @@ start the app with `QUICKIE_WEB_ROOT=apps/quickie/dist-web`, then reload the pho
   certificate warning once (expected on a home network: there's no certificate authority), name the
   phone, done. The phone sees the whole shelf through that computer and can share text, photos and
   files; the computer hosts what the phone shares.
-- **Share**: type or paste text, ⌘V anywhere in the open shelf, or drop files on the bubble.
-  Files stay where they are; other devices pull them only when opened, saved or dragged out.
+- **Share**: type or paste text, ⌘V anywhere in the open shelf, or drop files and folders on the
+  bubble. Files copied in Finder / Explorer can be pasted too. Nothing is copied up front; other
+  devices pull files only when opened, saved or dragged out (folders arrive as folders; phones get a
+  zip).
 - **Unmount** takes an item off every device. Items expire on their own after 24h.
 - Click the bubble or press ⌃⌥Space (Ctrl+Alt+Space) to open the shelf; drag the bubble to move it.
   Esc or clicking elsewhere tucks it away. Quit and *Open at Login* are in the menu-bar icon.

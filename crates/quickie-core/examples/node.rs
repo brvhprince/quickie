@@ -4,7 +4,7 @@
 //!
 //! Commands (device and item ids can be abbreviated to a unique prefix):
 //!   <text>            share a line of text
-//!   /file <path>      mount a file
+//!   /file <path>      mount a file or folder
 //!   /get <item>       fetch an item's bytes and print the local path
 //!   /rm <item>        unmount one of your items
 //!   /ask <device>     ask a nearby device to show a pairing code
@@ -53,7 +53,7 @@ async fn run(node: &Node, line: &str) -> Result<()> {
     match words.next() {
         Some("/ls") => print_shelf(&snap),
         Some("/file") => {
-            node.mount_file(line["/file".len()..].trim())?;
+            node.mount_path(line["/file".len()..].trim())?;
         }
         Some("/get") => {
             let id = item_id(&snap, words.next())?;
@@ -121,6 +121,7 @@ fn print_shelf(snap: &Snapshot) {
         let what = match &item.kind {
             ItemKind::Text { text } => text.clone(),
             ItemKind::File { name, size, .. } => format!("file {name} ({size} bytes)"),
+            ItemKind::Folder { name, size, files } => format!("folder {name} ({files} files, {size} bytes)"),
         };
         let progress = snap.transfers.get(&item.id).map(|t| format!(" {}/{}", t.received, t.total));
         println!("  [{}] ({owner}) {what}{}", &item.id[..8], progress.unwrap_or_default());

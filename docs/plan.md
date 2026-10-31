@@ -26,8 +26,9 @@ Android phone on the **home network**. Quick and ephemeral, not a sync service.
   drop onto bubble/shelf, on-demand fetch with HTTP Range resume, drag-out (`tauri-plugin-drag`,
   copy mode), open / save to Downloads, 24h TTL expiry, ⌃⌥Space shortcut, open at login,
   single-instance.
-- [ ] **M1 leftovers**: folders (zip on the fly?), pasting files copied in Finder/Explorer,
-  `tauri-nspanel` so the bubble doesn't steal focus on macOS, Windows test pass.
+- [x] **M1 leftovers**: folders (zipped on the fly while sending, unpacked on arrival; phones get
+  the zip), ⌘V / "Share clipboard" shares files copied in Finder or Explorer, the macOS bubble is a
+  non-activating panel (`tauri-nspanel`) so it never steals focus from the app you're in.
 - [x] **M2 phone web client**: desktop serves a Svelte page over the same TLS port; phone pairs by
   QR code (one-time secret → cookie session); shares text, photos and files (uploaded to and hosted
   by the desktop); sees, copies, opens and downloads everything on the shelf (other devices' files
@@ -51,6 +52,9 @@ Android phone on the **home network**. Quick and ephemeral, not a sync service.
   allows 3 runs per code. Confirmation HMACs cover both TLS-verified device ids.
 - Downloaded copies of other devices' items live in a cache that is wiped on startup and when the
   item leaves the shelf. "Save to Downloads" makes a copy the user keeps.
+- Folders are sent as an uncompressed zip built while streaming (no up-front copy, no resume),
+  capped at 50,000 files. Symlinks are skipped, OS litter (`.DS_Store`, `Thumbs.db`) is left out,
+  and unpacking refuses any entry that would land outside the folder.
 - Phones are paired to one desktop, which hosts their items (`Item.via` names the phone). The phone
   can only unmount what it shared; the desktop can unmount anything it hosts or unpair the phone.
 - Browser trust is weaker than device trust: the browser can't pin the desktop's certificate, so

@@ -165,13 +165,15 @@ async function copyText(text: string) {
 
 export const webActions: ItemActions = {
   copyText,
+  // Folders arrive as a zip, which a browser can't show; "Download" covers it.
+  canOpen: (item) => item.kind === "file",
   open: async (item) => {
     window.open(contentUrl(item.id, true), "_blank", "noopener");
   },
   save: async (item) => {
     const link = document.createElement("a");
     link.href = contentUrl(item.id);
-    link.download = item.name;
+    link.download = item.kind === "folder" ? `${item.name}.zip` : item.name;
     link.click();
   },
   saveLabel: "Download",

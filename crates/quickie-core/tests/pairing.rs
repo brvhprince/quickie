@@ -55,7 +55,7 @@ async fn pair_share_fetch_unmount() {
     let original = dir_a.join("payload.bin");
     let bytes: Vec<u8> = (0..3_000_000u32).map(|i| (i * 7 % 251) as u8).collect();
     std::fs::write(&original, &bytes).unwrap();
-    let item = a.mount_file(&original).unwrap();
+    let item = a.mount_path(&original).unwrap();
     until(&b, "the file on beta's shelf", |s| s.items.iter().any(|i| i.id == item.id)).await;
     let fetched = b.fetch(&item.id).await.unwrap();
     assert_eq!(std::fs::read(&fetched).unwrap(), bytes);
@@ -64,6 +64,19 @@ async fn pair_share_fetch_unmount() {
     a.unmount(&item.id).unwrap();
     until(&b, "the file to leave beta's shelf", |s| s.items.iter().all(|i| i.id != item.id)).await;
     assert!(!fetched.exists());
+
+    // Folders arrive as folders, nested contents intact.
+    let folder = dir_a.join("Album");
+    std::fs::create_dir_all(folder.join("raw")).unwrap();
+    std::fs::write(folder.join("cover.txt"), "cover").unwrap();
+    std::fs::write(folder.join("raw/track.bin"), &bytes[..500_000]).unwrap();
+    let item = a.mount_path(&folder).unwrap();
+    until(&b, "the folder on beta's shelf", |s| s.items.iter().any(|i| i.id == item.id)).await;
+    let fetched = b.fetch(&item.id).await.unwrap();
+    assert!(fetched.is_dir());
+    assert_eq!(fetched.file_name().unwrap(), "Album");
+    assert_eq!(std::fs::read_to_string(fetched.join("cover.txt")).unwrap(), "cover");
+    assert_eq!(std::fs::read(fetched.join("raw/track.bin")).unwrap(), &bytes[..500_000]);
 
     a.shutdown();
     b.shutdown();

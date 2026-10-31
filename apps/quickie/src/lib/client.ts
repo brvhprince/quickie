@@ -32,6 +32,8 @@ export const tauriShelf: ShelfClient = {
 export const desktop = {
   /** Resolves to one message per file that couldn't be shared. */
   mountPaths: (paths: string[]) => invoke<string[]>("mount_paths", { paths }),
+  /** Files and folders copied in Finder / Explorer, if any. */
+  clipboardFiles: () => invoke<string[]>("clipboard_files"),
   fetch: (id: string) => invoke<string>("fetch", { id }),
   open: (id: string) => invoke<void>("open_item", { id }),
   save: (id: string) => invoke<string>("save_item", { id }),

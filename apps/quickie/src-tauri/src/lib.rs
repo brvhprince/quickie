@@ -119,6 +119,11 @@ pub fn run() {
             );
     }
 
+    #[cfg(target_os = "macos")]
+    {
+        builder = builder.plugin(tauri_nspanel::init());
+    }
+
     let app = builder
         .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, None))
         .plugin(tauri_plugin_clipboard_manager::init())
@@ -128,6 +133,7 @@ pub fn run() {
             commands::snapshot,
             commands::share_text,
             commands::mount_paths,
+            commands::clipboard_files,
             commands::unmount,
             commands::fetch,
             commands::open_item,
@@ -151,6 +157,8 @@ pub fn run() {
 
             build_tray(app)?;
             if let Some(window) = app.get_webview_window("main") {
+                #[cfg(target_os = "macos")]
+                window::make_panel(&window)?;
                 window::place_bubble(&window)?;
             }
             Ok(())

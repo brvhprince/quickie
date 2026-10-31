@@ -14,7 +14,9 @@ export interface DeviceStatus extends DeviceInfo {
 
 export type ItemKind =
   | { kind: "text"; text: string }
-  | { kind: "file"; name: string; size: number; mime: string };
+  | { kind: "file"; name: string; size: number; mime: string }
+  /** Sent as a zip built on the fly; desktops unpack it, phones download the zip. */
+  | { kind: "folder"; name: string; size: number; files: number };
 
 /** A paired phone browser. */
 export interface WebSender {
@@ -32,7 +34,8 @@ export type Item = {
   via?: WebSender;
 } & ItemKind;
 
-export type FileItem = Item & { kind: "file" };
+/** Anything with bytes behind it: a file or a folder. */
+export type FileItem = Exclude<Item, { kind: "text" }>;
 
 export interface Transfer {
   received: number;

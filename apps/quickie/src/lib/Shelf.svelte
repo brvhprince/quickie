@@ -52,12 +52,17 @@
     if (await share(draft)) draft = "";
   }
 
-  async function shareClipboard() {
-    try {
-      await share(await readText());
-    } catch {
-      notice = "Clipboard has no text";
+  /** Copied files and folders win over text; Finder also puts their names on the clipboard as text. */
+  async function shareClipboard(text?: string) {
+    notice = "";
+    const files = await desktop.clipboardFiles();
+    if (files.length > 0) {
+      notice = (await desktop.mountPaths(files)).join("\n");
+      return;
     }
+    text ??= await readText().catch(() => "");
+    if (text) await share(text);
+    else notice = "Nothing to share on the clipboard";
   }
 
   function keydown(e: KeyboardEvent) {
@@ -71,14 +76,15 @@
     }
   }
 
-  // ⌘V anywhere outside a text field shares the clipboard straight away.
+  // ⌘V outside a text field shares the clipboard straight away. Inside one it
+  // types as usual, unless files were copied: then it shares those.
   function paste(e: ClipboardEvent) {
-    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-    const text = e.clipboardData?.getData("text/plain");
-    if (text) {
-      e.preventDefault();
-      share(text);
-    }
+    const inField = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement;
+    const types = e.clipboardData?.types ?? [];
+    const hasFiles = types.includes("Files") || types.includes("text/uri-list");
+    if (inField && !hasFiles) return;
+    e.preventDefault();
+    shareClipboard(hasFiles ? undefined : e.clipboardData?.getData("text/plain"));
   }
 </script>
 
@@ -106,10 +112,10 @@
       bind:value={draft}
       onkeydown={draftKeydown}
       rows="2"
-      placeholder="Type, paste, or drop files to share"
+      placeholder="Type, paste, or drop files and folders"
     ></textarea>
     <div class="actions">
-      <button class="ghost" onclick={shareClipboard}>Share clipboard</button>
+      <button class="ghost" onclick={() => shareClipboard()}>Share clipboard</button>
       <button class="primary" onclick={shareDraft} disabled={!draft.trim()} title="⌘↵">Share</button>
     </div>
     {#if notice}<p class="notice">{notice}</p>{/if}

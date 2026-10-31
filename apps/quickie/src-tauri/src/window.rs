@@ -1,15 +1,62 @@
-use tauri::{PhysicalPosition, PhysicalSize, WebviewWindow};
+use tauri::{AppHandle, PhysicalPosition, PhysicalSize, WebviewWindow};
 
 const BUBBLE_SIZE: (f64, f64) = (64.0, 64.0);
 const PANEL_SIZE: (f64, f64) = (360.0, 560.0);
 
 #[tauri::command]
-pub fn set_expanded(window: WebviewWindow, expanded: bool) -> Result<(), String> {
+pub fn set_expanded(app: AppHandle, window: WebviewWindow, expanded: bool) -> Result<(), String> {
     let size = if expanded { PANEL_SIZE } else { BUBBLE_SIZE };
     resize_anchored(&window, size).map_err(|e| e.to_string())?;
-    if expanded {
-        window.set_focus().map_err(|e| e.to_string())?;
+    focus(&app, &window, expanded).map_err(|e| e.to_string())
+}
+
+/// Gives the open shelf the keyboard, and hands it back when the shelf closes.
+#[cfg_attr(not(target_os = "macos"), allow(unused_variables))]
+fn focus(app: &AppHandle, window: &WebviewWindow, expanded: bool) -> tauri::Result<()> {
+    #[cfg(target_os = "macos")]
+    {
+        use tauri_nspanel::ManagerExt;
+        if let Ok(panel) = app.get_webview_panel(window.label()) {
+            if expanded {
+                panel.make_key_window();
+            } else {
+                panel.resign_key_window();
+            }
+            return Ok(());
+        }
     }
+    if expanded {
+        window.set_focus()?;
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+tauri_nspanel::tauri_panel! {
+    panel!(ShelfPanel {
+        config: {
+            can_become_key_window: true,
+            is_floating_panel: true
+        }
+    })
+}
+
+/// On macOS, turns the window into a non-activating panel, like Spotlight: you
+/// can click the bubble and type into the shelf while the app you were using
+/// stays frontmost, and keystrokes go back to it when the shelf closes.
+#[cfg(target_os = "macos")]
+pub fn make_panel(window: &WebviewWindow) -> tauri::Result<()> {
+    use tauri_nspanel::{CollectionBehavior, PanelLevel, StyleMask, WebviewWindowExt};
+    let panel = window.to_panel::<ShelfPanel>()?;
+    panel.set_level(PanelLevel::Floating.value());
+    // If AppKit refuses, it's still a working floating window, just one that takes focus.
+    if let Err(err) = panel.set_style_mask(StyleMask::empty().borderless().nonactivating_panel().into()) {
+        tracing::warn!("could not make the bubble non-activating: {err:?}");
+    }
+    // Stay put across Spaces and over full-screen apps.
+    panel.set_collection_behavior(
+        CollectionBehavior::new().can_join_all_spaces().full_screen_auxiliary().stationary().into(),
+    );
     Ok(())
 }
 

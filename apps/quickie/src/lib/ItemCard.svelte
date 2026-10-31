@@ -91,9 +91,17 @@
       onpointerdown={down}
       onpointermove={move}
     >
-      <span class="badge">{extension(file.name)}</span>
+      <span class="badge">
+        {#if file.kind === "folder"}
+          <svg viewBox="0 0 24 24" aria-label="folder"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /></svg>
+        {:else}
+          {extension(file.name)}
+        {/if}
+      </span>
       <span class="name">{file.name}</span>
-      <span class="muted size">{bytes(file.size)}</span>
+      <span class="muted size">
+        {#if file.kind === "folder"}{file.files} {file.files === 1 ? "file" : "files"} · {/if}{bytes(file.size)}
+      </span>
     </div>
     {#if transfer}
       <div class="progress" role="progressbar" aria-valuenow={Math.round(percent)} aria-valuemin="0" aria-valuemax="100">
@@ -102,7 +110,9 @@
       <div class="muted status">Fetching {bytes(transfer.received)} of {bytes(transfer.total)}</div>
     {:else}
       <div class="actions">
-        <button class="ghost" onclick={() => run(() => actions.open(file))}>Open</button>
+        {#if actions.canOpen?.(file) ?? true}
+          <button class="ghost" onclick={() => run(() => actions.open(file))}>Open</button>
+        {/if}
         {#if mine}
           <button class="ghost danger" onclick={() => run(() => actions.remove(item))} title="Remove from every device">
             Unmount
@@ -180,6 +190,12 @@
     color: #fff;
     font-size: 10px;
     font-weight: 700;
+  }
+
+  .badge svg {
+    width: 18px;
+    height: 18px;
+    fill: #fff;
   }
 
   .name {

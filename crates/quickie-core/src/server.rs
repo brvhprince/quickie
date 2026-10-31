@@ -9,7 +9,7 @@ use axum::{
         connect_info::Connected,
         ws::{Message, WebSocket, WebSocketUpgrade},
     },
-    http::{StatusCode, request::Parts},
+    http::{StatusCode, header::CONTENT_TYPE, request::Parts},
     response::{IntoResponse, Response},
     routing::{get, post},
     serve::{IncomingStream, Listener},
@@ -23,7 +23,7 @@ use tower::ServiceExt;
 use tower_http::services::ServeFile;
 
 use crate::{
-    DeviceId, DeviceInfo, Item, Node, WireEvent,
+    DeviceId, DeviceInfo, Item, Node, WireEvent, files,
     identity::device_id,
     pairing::{ConfirmMsg, PairError, RequestMsg, StartMsg, StartReply},
     web,
@@ -196,11 +196,14 @@ async fn items(_: Paired, State(node): State<Node>) -> Json<Vec<Item>> {
     Json(node.local_items())
 }
 
-/// Streams a mounted file, with Range support for resuming.
+/// Streams a mounted file (with Range support for resuming) or folder (as a zip).
 async fn content(_: Paired, State(node): State<Node>, Path(id): Path<String>, req: Request) -> Response {
     let Some(path) = node.local_path(&id) else {
         return (StatusCode::NOT_FOUND, "No such item").into_response();
     };
+    if path.is_dir() {
+        return ([(CONTENT_TYPE, "application/zip")], files::zip_body(path)).into_response();
+    }
     match ServeFile::new(path).oneshot(req).await {
         Ok(res) => res.into_response(),
         Err(err) => (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response(),

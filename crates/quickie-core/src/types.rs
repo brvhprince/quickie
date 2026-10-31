@@ -41,6 +41,8 @@ pub enum ItemKind {
     Text { text: String },
     /// Mounted by reference: the bytes stay on the owner until someone fetches them.
     File { name: String, size: u64, mime: String },
+    /// Also by reference; sent as a zip built on the fly and unpacked on arrival.
+    Folder { name: String, size: u64, files: u64 },
 }
 
 /// Peer-to-peer messages on `/v1/events`. Each device only ever announces its
